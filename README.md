@@ -1,7 +1,8 @@
 # Automating MongoDB backup to S3 Bucket
 This how-to tutorial shows how to automate scheduled backups of Mongo database instance 
-using cron and Amazon S3 to store the backup data.  
+using cron and Amazon S3 to store the backup data.
 Please notice, that this is a very basic way to make sure you do not loose data.  
+
 *Compatible and tested with MongoDB v3.4.4 on Ubuntu*
 
 ### Getting Started

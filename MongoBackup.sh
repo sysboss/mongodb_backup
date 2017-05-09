@@ -12,6 +12,7 @@
 # General
   WORKDIR="/home/ubuntu"
   BACKUP_DIR="${WORKDIR}/backups"
+  INSTANCE_NAME=`hostname`
 # MongoDB Connector
   MONGO_HOST="localhost"
   MONGO_PORT=27017
@@ -21,13 +22,13 @@
 # Backup behavior
   STORE_LOCAL_COPIES=0
   S3_BUCKET_NAME=
-  S3_BUCKET_PATH=
-  UPLOAD_RETRIES=3
-
+  # Year/Mon/Day/HostName
+  S3_BUCKET_PATH=`date +'%Y'`"/"`date +'%b'`"/"`date +'%d'`/${INSTANCE_NAME}
 # Other defaults
   FILE_NAME_FORMAT="mongodump_"`date '+%F-%H%M'`".dump"
   LOCKFILE="${BACKUP_DIR}/.mongobackup.lock"
   LOGFILE="${BACKUP_DIR}/mongobackup.log"
+  LOGTOFILE="false"
   REQUIRED_TOOLS="mongodump aws tar"
 
 
@@ -42,7 +43,10 @@ Copyright (c) 2017 Alexey Baikov <sysboss[@]mail.ru>
 usage: $0 options
 
 OPTIONS:
+    -w    Work directory path
     -b    AWS S3 Bucket Name
+    -n    Instance Name (defult: hostname)
+    -l    Log to file (default: STDOUT)
     -k    Keep local copies (default: 0)
     -r    AWS S3 Region (optional)
     -p    Path / Folder inside the bucket (optional)
@@ -50,12 +54,21 @@ OPTIONS:
 EOF
 }
 
-while getopts “ht:k:b:p:” OPTION
+while getopts “ht:w:l:k:b:n:p:” OPTION
 do
   case $OPTION in
     h)
       usage
       exit 1
+      ;;
+    w)
+      WORKDIR=$OPTARG
+      ;;
+    n)
+      INSTANCE_NAME=$OPTARG
+      ;;
+    l)
+      LOGTOFILE=$OPTARG
       ;;
     k)
       STORE_LOCAL_COPIES=$OPTARG
@@ -77,9 +90,9 @@ do
 done
 
 # options
-if [ -z ${S3_REGION} ] || [ -z ${S3_BUCKET_NAME} ] || [ -z ${S3_BUCKET_PATH} ]; then
-  usage
-  exit 1
+if [ -z ${WORKDIR} ] || [ -z ${STORE_LOCAL_COPIES} ] || [ -z ${S3_BUCKET_NAME} ]; then
+    usage
+    exit 1
 fi
 
 function die {
@@ -127,17 +140,30 @@ function log {
 function cleanup {
     local lvl=$1
 
-    # release lock
-    unlock
-
-    if [ "${BACKUP_DIR}/${FILE_NAME_FORMAT}" != "" ]; then
-        rm -fr "${BACKUP_DIR}/${FILE_NAME_FORMAT}"
-    fi
-
     # unlock database writes
     runCommand mongo admin --eval "printjson(db.fsyncUnlock())"
     log "Database is unlocked"
 
+    # release lock
+    unlock
+
+    # remove temp files
+    if [ "${BACKUP_DIR}/${FILE_NAME_FORMAT}" != "" ]; then
+        rm -fr "${BACKUP_DIR}/${FILE_NAME_FORMAT}"
+    fi
+
+    # rotate backups
+    COUNT="$(ls -tp ${BACKUP_DIR}/mongodump*.tar.gz | wc -w)"
+    DELETE=$(($COUNT-$STORE_LOCAL_COPIES))
+
+    # remove old tars
+    if [ $DELETE -ge 0 ]; then
+        ls -lat ${BACKUP_DIR}/mongodump*.tar.gz | \
+          tail -$DELETE | awk '{print $NF}' | \
+          xargs rm -f
+    fi
+
+    # report, on error/abortion
     if [ "$lvl" != "" ]; then
         log "Aborting backup" "$lvl"
         exit 2
@@ -176,7 +202,7 @@ lock || die "Only one backup instance can run at a time"
 sigHandler
 
 # log to file
-#[ -f "${LOGFILE}" ] && logToFile
+[ -f "${LOGTOFILE}" ] && logToFile
 
 # verify all tools installed
 for i in ${REQUIRED_TOOLS}; do
@@ -193,15 +219,19 @@ log "Lock database writes"
 runCommand mongo admin --eval "printjson(db.fsyncLock())"
 
 log "Taking database dump into backup directory"
+DUMPFILE="${BACKUP_DIR}/${FILE_NAME_FORMAT}"
 
 if [ "${MONGO_DATABASE}" != "" ]; then
-    mongodump -h $MONGO_HOST:$MONGO_PORT -d $MONGO_DATABASE -o ${BACKUP_DIR}/${FILE_NAME_FORMAT}
+    mongodump -h $MONGO_HOST:$MONGO_PORT -d $MONGO_DATABASE -o ${DUMPFILE}
 else
-    mongodump -h $MONGO_HOST:$MONGO_PORT -o ${BACKUP_DIR}/${FILE_NAME_FORMAT}
+    mongodump -h $MONGO_HOST:$MONGO_PORT -o ${DUMPFILE}
 fi
 
 log "Creating compressed archive of backup directory"
-tar -zcvf "${BACKUP_DIR}/${FILE_NAME_FORMAT}.tar.gz" -C "${BACKUP_DIR}/" .
+tar -zcf "${DUMPFILE}.tar.gz" -C "${BACKUP_DIR}/" .
+
+log "Uploading to S3 Bucket (s3://${S3_BUCKET_NAME}/${S3_BUCKET_PATH})"
+runCommand aws s3 cp "${DUMPFILE}.tar.gz" "s3://${S3_BUCKET_NAME}/${S3_BUCKET_PATH}/${FILE_NAME_FORMAT}.tar.gz"
 
 # do some cleanup
 # and release locks
