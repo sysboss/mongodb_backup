@@ -1,9 +1,12 @@
 # Automating MongoDB backup to S3 Bucket
-This how-to tutorial shows how to automate scheduled backups of Mongo database instance 
-using cron and Amazon S3 to store the backup data.
+This how-to tutorial shows how to automate scheduled backups of Mongo database. The script can store backups on S3 and local copies, according to your requirement. Based on AWS CLI, MongoDump, Tar and Cron.  
 Please notice, that this is a very basic way to make sure you do not loose data.  
 
-*Compatible and tested with MongoDB v3.4.4 on Ubuntu*
+Key features:
+* Fault tolerant
+* Stores localy and on S3
+* Backups rotation
+* Compression
 
 ### Getting Started
 * Setup a bucket on AWS S3
@@ -35,3 +38,41 @@ Let's verify we have access to S3. This command will show you all your S3 bucket
 ```
 aws s3 ls
 ```
+
+### Usage
+```
+usage: ./MongoBackup.sh options
+
+OPTIONS:
+    -b    AWS S3 Bucket Name
+          Bucket to store the backups (eg. db.backups)
+          
+    -w    Work directory path
+          Path to store local copies (see -k flag)
+          By default: /home/ubuntu
+          
+    -n    Instance Name
+          Name of MongoDB instance
+          By defult: hostname
+          
+    -l    Log to file Flag
+          Will only log to file
+          By default: write to STDOUT
+          
+    -k    Keep local copies
+          Number of local copies to keep
+          By default: 0
+          
+    -r    AWS S3 Region (optional)
+    
+    -p    Path / Folder inside the bucket (optional)
+          By default: BucketName/Year/Mon/Day/InstanceName
+```
+
+### Automate the backup
+To schedule automatic backup at 01:05 AM, add the following line to your crontab:
+```
+5 1 * * *    ubuntu    /home/ubuntu/MongoBackup.sh -b db.backups -n My_MongoDB_Name -k 7
+
+```
+*This will upload backups to db.backups bucket and keep 7 local copies*
