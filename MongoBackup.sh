@@ -54,7 +54,7 @@ OPTIONS:
 EOF
 }
 
-while getopts “ht:w:l:k:b:n:p:” OPTION
+while getopts ":l:h:w:k:b:n:p:" OPTION
 do
   case $OPTION in
     h)
@@ -66,9 +66,10 @@ do
       ;;
     n)
       INSTANCE_NAME=$OPTARG
+      S3_BUCKET_PATH=`date +'%Y'`"/"`date +'%b'`"/"`date +'%d'`/${INSTANCE_NAME}
       ;;
     l)
-      LOGTOFILE=$OPTARG
+      LOGTOFILE="true"
       ;;
     k)
       STORE_LOCAL_COPIES=$OPTARG
