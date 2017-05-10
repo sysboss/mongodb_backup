@@ -43,8 +43,8 @@ Copyright (c) 2017 Alexey Baikov <sysboss[@]mail.ru>
 usage: $0 options
 
 OPTIONS:
-    -w    Work directory path
     -b    AWS S3 Bucket Name
+    -w    Work directory path (default: /home/ubuntu)
     -n    Instance Name (defult: hostname)
     -l    Log to file (default: STDOUT)
     -k    Keep local copies (default: 0)
