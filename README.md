@@ -39,6 +39,11 @@ Let's verify we have access to S3. This command will show you all your S3 bucket
 aws s3 ls
 ```
 
+Clone this repository:
+```
+git clone https://github.com/sysboss/mongodb_backup.git
+```
+
 ### Usage
 ```
 usage: ./MongoBackup.sh options
@@ -72,7 +77,25 @@ OPTIONS:
 ### Automate the backup
 To schedule automatic backup at 01:05 AM, add the following line to your crontab:
 ```
-5 1 * * *    ubuntu    /home/ubuntu/MongoBackup.sh -b db.backups -n My_MongoDB_Name -k 7
+5 1 * * *    ubuntu    /home/ubuntu/MongoBackup.sh -b ${S3-Backups-Bucket} -n ${MongoDB-Server-Name} -k 7
 
 ```
-*This will upload backups to db.backups bucket and keep 7 local copies*
+*This will upload backups to ${S3-Backups-Bucket} bucket and keep 7 local copies*
+
+### Restore
+Steps to restore the database from backup:
+1. Download the database snapshot from S3:
+```
+aws s3 cp --region ${YourRegion} s3://${S3-Backups-Bucket}/${Year}/${Mon}/${Day}/${MongoDB-Server-Name}/mongodump_${timestamp}.tar.gz /tmp
+```
+2. Decompress the dump:
+NOTICE! Make sure you have enough disk space.
+```
+tar xvfs mongodump_*.tar.gz
+```
+
+3. Remove compressed backup tar to free up space
+4. Use *mongorestore* utility to restores a binary backup:
+```
+mongorestore <path to the backup directory>
+```
