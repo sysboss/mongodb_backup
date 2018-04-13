@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # MongoDB Backup Tool
-# Copyright (c) 2017 Alexey Baikov <sysboss[@]mail.ru>
+# Copyright (c) 2018 Alexey Baikov <sysboss[@]mail.ru>
 #
 # Description: Backing up MongoDB to S3 Bucket
 # GitHub: https://github.com/sysboss/mongodb_backup
@@ -38,7 +38,7 @@
 function usage {
 cat << EOF
 MongoDB Backup Tool
-Copyright (c) 2017 Alexey Baikov <sysboss[@]mail.ru>
+Copyright (c) 2018 Alexey Baikov <sysboss[@]mail.ru>
 
 usage: $0 options
 
@@ -132,7 +132,7 @@ function log {
     local lvl=${2:-"INFO"}
 
     if ! which printf > /dev/null; then
-        echo "$(getDateTime)   $lvl  $msg" #| tee -a ${LOGFILE}
+        echo "$(getDateTime)  $lvl  $msg" #| tee -a ${LOGFILE}
     else
         printf "%15s  %5s  %s\n" "$(getDateTime)" "$lvl" "$msg"
     fi
@@ -140,10 +140,6 @@ function log {
 
 function cleanup {
     local lvl=$1
-
-    # unlock database writes
-    runCommand mongo admin --eval "printjson(db.fsyncUnlock())"
-    log "Database is unlocked"
 
     # release lock
     unlock
@@ -166,6 +162,9 @@ function cleanup {
 
     # report, on error/abortion
     if [ "$lvl" != "" ]; then
+        # unlock database writes
+        runCommand mongo admin --eval "printjson(db.fsyncUnlock())"
+        log "Database is unlocked"
         log "Aborting backup" "$lvl"
         exit 2
     fi
@@ -227,6 +226,10 @@ if [ "${MONGO_DATABASE}" != "" ]; then
 else
     mongodump -h $MONGO_HOST:$MONGO_PORT -o ${DUMPFILE}
 fi
+
+# unlock database writes
+runCommand mongo admin --eval "printjson(db.fsyncUnlock())"
+log "Database is unlocked"
 
 log "Creating compressed archive of backup directory"
 tar -zcf "${DUMPFILE}.tar.gz" -C "${BACKUP_DIR}/" .
