@@ -4,7 +4,7 @@ Please notice, that this is a very basic way to make sure you do not loose data.
 
 Key features:
 * Fault tolerant
-* Stores localy and on S3
+* Stores locally and on S3
 * Backups rotation
 * Compression
 
